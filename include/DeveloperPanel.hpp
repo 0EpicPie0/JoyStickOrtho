@@ -20,8 +20,13 @@ class DeveloperPanel
 {
 public:
     using SaveCallback = std::function<void()>;
+    using SaveTemplateCallback = std::function<void()>;
 
-    DeveloperPanel(PointNormalizer& normalizer, AppConfig& config, sf::Font& font, SaveCallback onSave);
+    DeveloperPanel(PointNormalizer& normalizer,
+                   AppConfig& config,
+                   sf::Font& font,
+                   SaveCallback onSave,
+                   SaveTemplateCallback onSaveTemplate);
 
     void handleEvent(const sf::Event& event, const sf::RenderWindow& window);
     void update();
@@ -58,22 +63,27 @@ private:
     void applyToNormalizer();
     void updateVisuals();
     void handleMouseDrag(const sf::Vector2f& worldPos);
-    void updateSaveButtonVisual(bool hover);
+    void updateButtonVisual(sf::RectangleShape& button, bool hover);
     void handleSaveClick();
+    void handleTemplateSaveClick();
 
     PointNormalizer& normalizer_;
     AppConfig& config_;
     sf::Font& font_;
-    std::array<Slider, 3> sliders_;
+    std::array<Slider, 4> sliders_;
     sf::RectangleShape background_;
     mutable sf::RectangleShape trackShape_;
     mutable sf::CircleShape knobShape_;
     sf::RectangleShape saveButton_;
     sf::Text saveButtonText_;
+    sf::RectangleShape templateButton_;
+    sf::Text templateButtonText_;
     SaveCallback saveCallback_;
+    SaveTemplateCallback saveTemplateCallback_;
     std::size_t activeSlider_;
     bool dragging_;
     bool saveHover_;
+    bool templateHover_;
 };
 
 #endif // JOYSTICK_DEV_MODE

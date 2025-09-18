@@ -79,8 +79,26 @@ bool loadAppConfig(const std::filesystem::path& filePath, AppConfig& outConfig)
         {
             parseFloat(value, loaded.deadZone);
         }
+        else if (key == "line_thickness")
+        {
+            parseFloat(value, loaded.lineThickness);
+        }
+        else if (key == "deviation_threshold")
+        {
+            parseFloat(value, loaded.deviationThreshold);
+        }
+        else if (key == "template_file")
+        {
+            const std::string trimmedValue = trim(value);
+            if (!trimmedValue.empty())
+            {
+                loaded.templateFile = trimmedValue;
+            }
+        }
     }
 
+    loaded.lineThickness = std::clamp(loaded.lineThickness, 0.5f, 30.0f);
+    loaded.deviationThreshold = std::max(0.0f, loaded.deviationThreshold);
     outConfig = loaded;
     return true;
 }
@@ -105,5 +123,8 @@ bool saveAppConfig(const std::filesystem::path& filePath, const AppConfig& confi
     file << "sensitivity=" << config.sensitivity << '\n';
     file << "smoothing=" << config.smoothing << '\n';
     file << "dead_zone=" << config.deadZone << '\n';
+    file << "line_thickness=" << config.lineThickness << '\n';
+    file << "deviation_threshold=" << config.deviationThreshold << '\n';
+    file << "template_file=" << config.templateFile << '\n';
     return true;
 }

@@ -21,29 +21,41 @@ constexpr float HIT_HEIGHT = 28.0f;
 constexpr float KNOB_RADIUS = 10.0f;
 constexpr float BUTTON_HEIGHT = 34.0f;
 constexpr float BUTTON_MARGIN_TOP = 18.0f;
+constexpr float BUTTON_GAP = 10.0f;
+constexpr std::size_t SLIDER_COUNT = 4;
 const sf::Color BUTTON_COLOR(60, 180, 255, 160);
 const sf::Color BUTTON_COLOR_HOVER(90, 210, 255, 200);
 } // namespace
 
-DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, AppConfig& config, sf::Font& font, SaveCallback onSave)
+DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer,
+                               AppConfig& config,
+                               sf::Font& font,
+                               SaveCallback onSave,
+                               SaveTemplateCallback onSaveTemplate)
     : normalizer_(normalizer)
     , config_(config)
     , font_(font)
     , sliders_{
           Slider{"Sensitivity", 0.2f, 4.0f, normalizer.sensitivity(), {PANEL_PADDING, PANEL_PADDING + 24.0f}, TRACK_WIDTH, TRACK_HEIGHT, font_},
           Slider{"Smoothing", 0.0f, 0.95f, normalizer.smoothing(), {PANEL_PADDING, PANEL_PADDING + 24.0f + SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
-          Slider{"Dead zone", 0.0f, 0.3f, normalizer.deadZone(), {PANEL_PADDING, PANEL_PADDING + 24.0f + 2.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_}}
+          Slider{"Dead zone", 0.0f, 0.3f, normalizer.deadZone(), {PANEL_PADDING, PANEL_PADDING + 24.0f + 2.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
+          Slider{"Line width", 1.0f, 12.0f, config.lineThickness, {PANEL_PADDING, PANEL_PADDING + 24.0f + 3.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_}}
     , background_()
     , trackShape_(sf::Vector2f(TRACK_WIDTH, TRACK_HEIGHT))
     , knobShape_(KNOB_RADIUS)
     , saveButton_(sf::Vector2f(TRACK_WIDTH, BUTTON_HEIGHT))
     , saveButtonText_(font_)
+    , templateButton_(sf::Vector2f(TRACK_WIDTH, BUTTON_HEIGHT))
+    , templateButtonText_(font_)
     , saveCallback_(std::move(onSave))
+    , saveTemplateCallback_(std::move(onSaveTemplate))
     , activeSlider_(static_cast<std::size_t>(-1))
     , dragging_(false)
     , saveHover_(false)
+    , templateHover_(false)
 {
-    const float panelHeight = PANEL_PADDING * 2.0f + SLIDER_SPACING * 3.0f + BUTTON_MARGIN_TOP + BUTTON_HEIGHT;
+    const float totalButtonHeight = BUTTON_HEIGHT * 2.0f + BUTTON_GAP;
+    const float panelHeight = PANEL_PADDING * 2.0f + SLIDER_SPACING * static_cast<float>(SLIDER_COUNT) + BUTTON_MARGIN_TOP + totalButtonHeight;
     background_.setSize({TRACK_WIDTH + PANEL_PADDING * 2.0f, panelHeight});
     background_.setFillColor(sf::Color(0, 0, 0, 160));
     background_.setOutlineThickness(1.0f);
@@ -53,7 +65,9 @@ DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, AppConfig& config, s
     knobShape_.setFillColor(sf::Color(60, 180, 255));
     knobShape_.setOrigin({KNOB_RADIUS, KNOB_RADIUS});
 
-    saveButton_.setPosition({PANEL_PADDING, PANEL_PADDING + 24.0f + 3.0f * SLIDER_SPACING + BUTTON_MARGIN_TOP});
+    const float firstButtonY = PANEL_PADDING + 24.0f + SLIDER_SPACING * static_cast<float>(SLIDER_COUNT) + BUTTON_MARGIN_TOP;
+
+    saveButton_.setPosition({PANEL_PADDING, firstButtonY});
     saveButton_.setFillColor(BUTTON_COLOR);
     saveButton_.setOutlineThickness(1.0f);
     saveButton_.setOutlineColor(sf::Color(20, 120, 200, 200));
@@ -67,8 +81,23 @@ DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, AppConfig& config, s
         saveButton_.getPosition().y + (saveButton_.getSize().y - textBounds.size.y) * 0.5f - textBounds.position.y};
     saveButtonText_.setPosition(textPos);
 
+    templateButton_.setPosition({PANEL_PADDING, firstButtonY + BUTTON_HEIGHT + BUTTON_GAP});
+    templateButton_.setFillColor(BUTTON_COLOR);
+    templateButton_.setOutlineThickness(1.0f);
+    templateButton_.setOutlineColor(sf::Color(20, 120, 200, 200));
+
+    templateButtonText_.setCharacterSize(16);
+    templateButtonText_.setFillColor(sf::Color::White);
+    templateButtonText_.setString("Save template");
+    const sf::FloatRect templateBounds = templateButtonText_.getLocalBounds();
+    const sf::Vector2f templatePos{
+        templateButton_.getPosition().x + (templateButton_.getSize().x - templateBounds.size.x) * 0.5f - templateBounds.position.x,
+        templateButton_.getPosition().y + (templateButton_.getSize().y - templateBounds.size.y) * 0.5f - templateBounds.position.y};
+    templateButtonText_.setPosition(templatePos);
+
     updateVisuals();
-    updateSaveButtonVisual(false);
+    updateButtonVisual(saveButton_, false);
+    updateButtonVisual(templateButton_, false);
 }
 
 void DeveloperPanel::handleEvent(const sf::Event& event, const sf::RenderWindow& window)
@@ -102,17 +131,28 @@ void DeveloperPanel::handleEvent(const sf::Event& event, const sf::RenderWindow&
             {
                 handleSaveClick();
             }
+            else if (templateButton_.getGlobalBounds().contains(mousePos))
+            {
+                handleTemplateSaveClick();
+            }
             dragging_ = false;
             activeSlider_ = static_cast<std::size_t>(-1);
         }
     }
     else if (event.is<sf::Event::MouseMoved>())
     {
-        const bool overButton = saveButton_.getGlobalBounds().contains(mousePos);
-        if (overButton != saveHover_)
+        const bool overSaveButton = saveButton_.getGlobalBounds().contains(mousePos);
+        if (overSaveButton != saveHover_)
         {
-            saveHover_ = overButton;
-            updateSaveButtonVisual(saveHover_);
+            saveHover_ = overSaveButton;
+            updateButtonVisual(saveButton_, saveHover_);
+        }
+
+        const bool overTemplateButton = templateButton_.getGlobalBounds().contains(mousePos);
+        if (overTemplateButton != templateHover_)
+        {
+            templateHover_ = overTemplateButton;
+            updateButtonVisual(templateButton_, templateHover_);
         }
 
         if (dragging_)
@@ -151,6 +191,8 @@ void DeveloperPanel::draw(sf::RenderTarget& target) const
 
     target.draw(saveButton_);
     target.draw(saveButtonText_);
+    target.draw(templateButton_);
+    target.draw(templateButtonText_);
 }
 
 sf::FloatRect DeveloperPanel::Slider::trackRect() const
@@ -183,6 +225,7 @@ void DeveloperPanel::syncFromNormalizer()
     sliders_[0].setValue(normalizer_.sensitivity());
     sliders_[1].setValue(normalizer_.smoothing());
     sliders_[2].setValue(normalizer_.deadZone());
+    sliders_[3].setValue(config_.lineThickness);
 }
 
 void DeveloperPanel::applyToNormalizer()
@@ -190,6 +233,7 @@ void DeveloperPanel::applyToNormalizer()
     config_.sensitivity = sliders_[0].value;
     config_.smoothing = sliders_[1].value;
     config_.deadZone = sliders_[2].value;
+    config_.lineThickness = std::clamp(sliders_[3].value, 0.5f, 30.0f);
     normalizer_.configure(config_.sensitivity, config_.smoothing, config_.deadZone);
 }
 
@@ -222,9 +266,9 @@ void DeveloperPanel::handleMouseDrag(const sf::Vector2f& worldPos)
     updateVisuals();
 }
 
-void DeveloperPanel::updateSaveButtonVisual(bool hover)
+void DeveloperPanel::updateButtonVisual(sf::RectangleShape& button, bool hover)
 {
-    saveButton_.setFillColor(hover ? BUTTON_COLOR_HOVER : BUTTON_COLOR);
+    button.setFillColor(hover ? BUTTON_COLOR_HOVER : BUTTON_COLOR);
 }
 
 void DeveloperPanel::handleSaveClick()
@@ -232,6 +276,14 @@ void DeveloperPanel::handleSaveClick()
     if (saveCallback_)
     {
         saveCallback_();
+    }
+}
+
+void DeveloperPanel::handleTemplateSaveClick()
+{
+    if (saveTemplateCallback_)
+    {
+        saveTemplateCallback_();
     }
 }
 

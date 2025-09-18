@@ -8,6 +8,7 @@ SRC = main.cpp \
       src/PointNormalizer.cpp \
       src/SplineRenderer.cpp \
       src/AppConfig.cpp \
+      src/TemplateStorage.cpp \
       src/DeveloperPanel.cpp
 TARGET = joystick
 

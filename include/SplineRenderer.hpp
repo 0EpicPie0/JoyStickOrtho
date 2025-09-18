@@ -7,5 +7,6 @@
 
 void drawSpline(sf::RenderTarget& target,
                 const std::vector<sf::Vector2f>& points,
-                sf::Color color = sf::Color::Green,
+                sf::Color color,
+                float thickness,
                 float step = 0.02f);
