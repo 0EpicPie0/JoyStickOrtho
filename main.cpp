@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -166,19 +167,29 @@ bool hasDeviation(const std::vector<sf::Vector2f>& actual,
     const float thresholdSquared = threshold * threshold;
     const std::size_t lastActualIndex = actual.size() - 1;
     const std::size_t lastReferenceIndex = reference.size() - 1;
+    constexpr std::size_t SEARCH_RADIUS = 6;
 
     for (std::size_t i = 0; i < actual.size(); ++i)
     {
         const float progress = lastActualIndex > 0 ? static_cast<float>(i) / static_cast<float>(lastActualIndex) : 0.0f;
         const float referencePos = progress * static_cast<float>(lastReferenceIndex);
-        const std::size_t baseIndex = static_cast<std::size_t>(referencePos);
-        const std::size_t nextIndex = std::min(baseIndex + 1, lastReferenceIndex);
-        const float localT = referencePos - static_cast<float>(baseIndex);
+        const std::size_t centerIndex = static_cast<std::size_t>(referencePos);
 
-        const sf::Vector2f interpolated = reference[baseIndex] + (reference[nextIndex] - reference[baseIndex]) * localT;
-        const sf::Vector2f diff = actual[i] - interpolated;
-        const float distSquared = diff.x * diff.x + diff.y * diff.y;
-        if (distSquared > thresholdSquared)
+        const std::size_t startIndex = (centerIndex > SEARCH_RADIUS) ? centerIndex - SEARCH_RADIUS : 0;
+        const std::size_t endIndex = std::min(lastReferenceIndex, centerIndex + SEARCH_RADIUS);
+
+        float bestDistanceSquared = std::numeric_limits<float>::infinity();
+        for (std::size_t idx = startIndex; idx <= endIndex; ++idx)
+        {
+            const sf::Vector2f diff = actual[i] - reference[idx];
+            const float distSquared = diff.x * diff.x + diff.y * diff.y;
+            if (distSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared = distSquared;
+            }
+        }
+
+        if (bestDistanceSquared > thresholdSquared)
         {
             return true;
         }
