@@ -6,8 +6,13 @@
 #include "PointNormalizer.hpp"
 #include "SerialPort.hpp"
 #include "SplineRenderer.hpp"
+#ifdef JOYSTICK_DEV_MODE
+#include "DeveloperPanel.hpp"
+#endif
 
 #include <cstdlib>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -26,6 +31,57 @@ std::string resolveSerialDevice()
         return env;
     }
     return DEFAULT_SERIAL_DEVICE;
+}
+
+bool loadFont(sf::Font& font)
+{
+    if (const char* env = std::getenv("JOYSTICK_FONT"))
+    {
+        if (font.openFromFile(env))
+        {
+            return true;
+        }
+    }
+
+    const char* candidates[] = {
+        "/System/Library/Fonts/SFNS.ttf",
+        "/System/Library/Fonts/Supplemental/Helvetica.ttc",
+        "/Library/Fonts/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "C:/Windows/Fonts/arial.ttf"
+    };
+
+    for (const char* path : candidates)
+    {
+        if (path != nullptr && font.openFromFile(path))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::string toFixed(float value, int precision)
+{
+    std::ostringstream stream;
+    stream.setf(std::ios::fixed);
+    stream << std::setprecision(precision) << value;
+    return stream.str();
+}
+
+std::string buildInstructionText(const PointNormalizer& normalizer)
+{
+    std::string text = "ESC - выход | C - очистка холста";
+#ifdef JOYSTICK_DEV_MODE
+    text += "\nSens: " + toFixed(normalizer.sensitivity(), 2);
+    text += " | Smooth: " + toFixed(normalizer.smoothing(), 2);
+    text += " | Dead: " + toFixed(normalizer.deadZone(), 3);
+    text += " | Режим разработчика: перетащи ползунки слева";
+#endif
+    return text;
 }
 
 void trimPointCount(std::vector<sf::Vector2f>& points)
@@ -55,6 +111,23 @@ int main()
     std::vector<sf::Vector2f> points;
     points.reserve(1024);
 
+    sf::Font uiFont;
+    const bool fontLoaded = loadFont(uiFont);
+    sf::Text instructions(uiFont);
+    sf::RectangleShape instructionsBackground;
+
+    if (fontLoaded)
+    {
+        instructions.setCharacterSize(16);
+        instructions.setFillColor(sf::Color::White);
+        instructionsBackground.setFillColor(sf::Color(0, 0, 0, 160));
+        instructionsBackground.setOutlineThickness(1.0f);
+        instructionsBackground.setOutlineColor(sf::Color(60, 180, 255, 150));
+    }
+#ifdef JOYSTICK_DEV_MODE
+    DeveloperPanel developerPanel(normalizer, uiFont);
+#endif
+
     while (window.isOpen())
     {
         while (auto event = window.pollEvent())
@@ -77,6 +150,9 @@ int main()
                     normalizer.reset();
                 }
             }
+#ifdef JOYSTICK_DEV_MODE
+            developerPanel.handleEvent(*event, window);
+#endif
         }
 
         while (true)
@@ -100,8 +176,26 @@ int main()
 
         window.clear(sf::Color::Black);
         drawSpline(window, points);
-        window.display();
+#ifdef JOYSTICK_DEV_MODE
+        developerPanel.update();
+        developerPanel.draw(window);
+#endif
 
+        if (fontLoaded)
+        {
+            instructions.setString(buildInstructionText(normalizer));
+            const sf::FloatRect bounds = instructions.getLocalBounds();
+            const sf::Vector2f backgroundSize(bounds.size.x + 24.0f, bounds.size.y + 24.0f);
+            const sf::Vector2f backgroundPos(10.0f, static_cast<float>(WINDOW_HEIGHT) - backgroundSize.y - 10.0f);
+            instructionsBackground.setSize(backgroundSize);
+            instructionsBackground.setPosition(backgroundPos);
+            instructions.setPosition({backgroundPos.x + 12.0f, backgroundPos.y + 8.0f});
+
+            window.draw(instructionsBackground);
+            window.draw(instructions);
+        }
+
+        window.display();
         sf::sleep(sf::milliseconds(2));
     }
 

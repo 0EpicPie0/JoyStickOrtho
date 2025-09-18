@@ -6,11 +6,17 @@ SRC = main.cpp \
       src/SerialPort.cpp \
       src/PacketParser.cpp \
       src/PointNormalizer.cpp \
-      src/SplineRenderer.cpp
+      src/SplineRenderer.cpp \
+      src/DeveloperPanel.cpp
 TARGET = joystick
+
+DEVFLAGS = -DJOYSTICK_DEV_MODE
 
 all:
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
+
+dev:
+	$(CXX) $(CXXFLAGS) $(DEVFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
 
 clean:
 	rm -f $(TARGET)

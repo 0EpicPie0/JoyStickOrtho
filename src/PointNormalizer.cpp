@@ -12,15 +12,16 @@ PointNormalizer::PointNormalizer(unsigned int width,
     : width_(width)
     , height_(height)
     , adcMax_(adcMax)
-    , sensitivity_(std::clamp(sensitivity, 1.0f, 4.0f))
-    , smoothing_(std::clamp(smoothing, 0.0f, 0.95f))
-    , deadZone_(std::max(deadZone, 0.0f))
+    , sensitivity_(1.0f)
+    , smoothing_(0.0f)
+    , deadZone_(0.0f)
     , calibrated_(false)
     , offsetX_(0.0f)
     , offsetY_(0.0f)
     , haveOutput_(false)
     , lastOutput_({0.0f, 0.0f})
 {
+    configure(sensitivity, smoothing, deadZone);
 }
 
 sf::Vector2f PointNormalizer::normalize(float rawX, float rawY)
@@ -56,8 +57,9 @@ sf::Vector2f PointNormalizer::normalize(float rawX, float rawY)
 
     auto applyResponseCurve = [this](float value) {
         const float centered = std::clamp(value - 0.5f, -0.5f, 0.5f);
-        const float magnitude = std::pow(std::min(std::fabs(centered) * 2.0f, 1.0f), sensitivity_);
-        const float scaled = (centered >= 0.0f ? 1.0f : -1.0f) * (magnitude * 0.5f);
+        const float scaledCentered = std::clamp(centered * 2.0f, -1.0f, 1.0f);
+        const float magnitude = std::pow(std::fabs(scaledCentered), sensitivity_);
+        const float scaled = (scaledCentered >= 0.0f ? 1.0f : -1.0f) * (magnitude * 0.5f);
         return std::clamp(scaled + 0.5f, 0.0f, 1.0f);
     };
 
@@ -76,9 +78,11 @@ sf::Vector2f PointNormalizer::normalize(float rawX, float rawY)
         return target;
     }
 
+    const float smoothFactor = std::clamp(smoothing_, 0.0f, 0.95f);
+    const float alpha = 1.0f - smoothFactor;
     const sf::Vector2f smoothed{
-        lastOutput_.x + smoothing_ * (target.x - lastOutput_.x),
-        lastOutput_.y + smoothing_ * (target.y - lastOutput_.y)
+        lastOutput_.x + alpha * (target.x - lastOutput_.x),
+        lastOutput_.y + alpha * (target.y - lastOutput_.y)
     };
 
     lastOutput_ = smoothed;
@@ -92,4 +96,26 @@ void PointNormalizer::reset()
     offsetY_ = 0.0f;
     haveOutput_ = false;
     lastOutput_ = {0.0f, 0.0f};
+}
+
+void PointNormalizer::configure(float sensitivity, float smoothing, float deadZone)
+{
+    sensitivity_ = std::clamp(sensitivity, 0.2f, 4.0f);
+    smoothing_ = std::clamp(smoothing, 0.0f, 0.95f);
+    deadZone_ = std::clamp(deadZone, 0.0f, 0.4f);
+}
+
+float PointNormalizer::sensitivity() const noexcept
+{
+    return sensitivity_;
+}
+
+float PointNormalizer::smoothing() const noexcept
+{
+    return smoothing_;
+}
+
+float PointNormalizer::deadZone() const noexcept
+{
+    return deadZone_;
 }

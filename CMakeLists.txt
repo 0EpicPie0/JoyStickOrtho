@@ -15,6 +15,7 @@ set(SOURCES
     src/PacketParser.cpp
     src/PointNormalizer.cpp
     src/SplineRenderer.cpp
+    src/DeveloperPanel.cpp
 )
 
 add_executable(joystick ${SOURCES})
@@ -26,3 +27,8 @@ target_link_libraries(joystick
     sfml-window
     sfml-system
 )
+
+option(JOYSTICK_DEV_MODE "Enable developer control panel" OFF)
+if (JOYSTICK_DEV_MODE)
+    target_compile_definitions(joystick PRIVATE JOYSTICK_DEV_MODE)
+endif()

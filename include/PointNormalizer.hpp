@@ -14,6 +14,11 @@ public:
 
     sf::Vector2f normalize(float rawX, float rawY);
     void reset();
+    void configure(float sensitivity, float smoothing, float deadZone);
+
+    [[nodiscard]] float sensitivity() const noexcept;
+    [[nodiscard]] float smoothing() const noexcept;
+    [[nodiscard]] float deadZone() const noexcept;
 
 private:
     unsigned int width_;
