@@ -70,7 +70,7 @@ private:
     PointNormalizer& normalizer_;
     AppConfig& config_;
     sf::Font& font_;
-    std::array<Slider, 4> sliders_;
+    std::array<Slider, 5> sliders_;
     sf::RectangleShape background_;
     mutable sf::RectangleShape trackShape_;
     mutable sf::CircleShape knobShape_;

@@ -121,9 +121,11 @@ std::string toFixed(float value, int precision)
 std::string buildInstructionText(const PointNormalizer& normalizer,
                                  bool templateLoaded,
                                  bool deviating,
-                                 float lineThickness)
+                                 float lineThickness,
+                                 float tolerance)
 {
     std::string text = "ESC - exit | C - clear canvas | Thickness: " + toFixed(lineThickness, 2);
+    text += " | Tolerance: " + toFixed(tolerance, 1) + " px";
 #ifdef JOYSTICK_DEV_MODE
     text += "\nSens: " + toFixed(normalizer.sensitivity(), 2);
     text += " | Smooth: " + toFixed(normalizer.smoothing(), 2);
@@ -167,7 +169,7 @@ bool hasDeviation(const std::vector<sf::Vector2f>& actual,
     const float thresholdSquared = threshold * threshold;
     const std::size_t lastActualIndex = actual.size() - 1;
     const std::size_t lastReferenceIndex = reference.size() - 1;
-    constexpr std::size_t SEARCH_RADIUS = 6;
+    const std::size_t searchRadius = std::max<std::size_t>(1, static_cast<std::size_t>(std::clamp(threshold / 5.0f, 1.0f, 50.0f)));
 
     for (std::size_t i = 0; i < actual.size(); ++i)
     {
@@ -175,8 +177,8 @@ bool hasDeviation(const std::vector<sf::Vector2f>& actual,
         const float referencePos = progress * static_cast<float>(lastReferenceIndex);
         const std::size_t centerIndex = static_cast<std::size_t>(referencePos);
 
-        const std::size_t startIndex = (centerIndex > SEARCH_RADIUS) ? centerIndex - SEARCH_RADIUS : 0;
-        const std::size_t endIndex = std::min(lastReferenceIndex, centerIndex + SEARCH_RADIUS);
+        const std::size_t startIndex = (centerIndex > searchRadius) ? centerIndex - searchRadius : 0;
+        const std::size_t endIndex = std::min(lastReferenceIndex, centerIndex + searchRadius);
 
         float bestDistanceSquared = std::numeric_limits<float>::infinity();
         for (std::size_t idx = startIndex; idx <= endIndex; ++idx)
@@ -359,7 +361,11 @@ int main()
 
         if (fontLoaded)
         {
-            instructions.setString(buildInstructionText(normalizer, templateAvailable, deviating, config.lineThickness));
+            instructions.setString(buildInstructionText(normalizer,
+                                                       templateAvailable,
+                                                       deviating,
+                                                       config.lineThickness,
+                                                       config.deviationThreshold));
             const sf::FloatRect bounds = instructions.getLocalBounds();
             const sf::Vector2f backgroundSize(bounds.size.x + 24.0f, bounds.size.y + 24.0f);
             const sf::Vector2f backgroundPos(10.0f, static_cast<float>(WINDOW_HEIGHT) - backgroundSize.y - 10.0f);

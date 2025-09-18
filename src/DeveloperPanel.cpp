@@ -22,7 +22,7 @@ constexpr float KNOB_RADIUS = 10.0f;
 constexpr float BUTTON_HEIGHT = 34.0f;
 constexpr float BUTTON_MARGIN_TOP = 18.0f;
 constexpr float BUTTON_GAP = 10.0f;
-constexpr std::size_t SLIDER_COUNT = 4;
+constexpr std::size_t SLIDER_COUNT = 5;
 const sf::Color BUTTON_COLOR(60, 180, 255, 160);
 const sf::Color BUTTON_COLOR_HOVER(90, 210, 255, 200);
 } // namespace
@@ -36,10 +36,11 @@ DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer,
     , config_(config)
     , font_(font)
     , sliders_{
-          Slider{"Sensitivity", 0.2f, 4.0f, normalizer.sensitivity(), {PANEL_PADDING, PANEL_PADDING + 24.0f}, TRACK_WIDTH, TRACK_HEIGHT, font_},
-          Slider{"Smoothing", 0.0f, 0.95f, normalizer.smoothing(), {PANEL_PADDING, PANEL_PADDING + 24.0f + SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
+          Slider{"Sensitivity", 0.2f, 4.0f, normalizer.sensitivity(), {PANEL_PADDING, PANEL_PADDING + 24.0f + 0.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
+          Slider{"Smoothing", 0.0f, 0.95f, normalizer.smoothing(), {PANEL_PADDING, PANEL_PADDING + 24.0f + 1.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
           Slider{"Dead zone", 0.0f, 0.3f, normalizer.deadZone(), {PANEL_PADDING, PANEL_PADDING + 24.0f + 2.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
-          Slider{"Line width", 1.0f, 12.0f, config.lineThickness, {PANEL_PADDING, PANEL_PADDING + 24.0f + 3.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_}}
+          Slider{"Line width", 1.0f, 12.0f, config.lineThickness, {PANEL_PADDING, PANEL_PADDING + 24.0f + 3.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_},
+          Slider{"Tolerance", 0.0f, 200.0f, config.deviationThreshold, {PANEL_PADDING, PANEL_PADDING + 24.0f + 4.0f * SLIDER_SPACING}, TRACK_WIDTH, TRACK_HEIGHT, font_}}
     , background_()
     , trackShape_(sf::Vector2f(TRACK_WIDTH, TRACK_HEIGHT))
     , knobShape_(KNOB_RADIUS)
@@ -226,6 +227,7 @@ void DeveloperPanel::syncFromNormalizer()
     sliders_[1].setValue(normalizer_.smoothing());
     sliders_[2].setValue(normalizer_.deadZone());
     sliders_[3].setValue(config_.lineThickness);
+    sliders_[4].setValue(config_.deviationThreshold);
 }
 
 void DeveloperPanel::applyToNormalizer()
@@ -234,6 +236,7 @@ void DeveloperPanel::applyToNormalizer()
     config_.smoothing = sliders_[1].value;
     config_.deadZone = sliders_[2].value;
     config_.lineThickness = std::clamp(sliders_[3].value, 0.5f, 30.0f);
+    config_.deviationThreshold = std::clamp(sliders_[4].value, 0.0f, 500.0f);
     normalizer_.configure(config_.sensitivity, config_.smoothing, config_.deadZone);
 }
 
@@ -244,7 +247,15 @@ void DeveloperPanel::updateVisuals()
         slider.text.setPosition({slider.position.x, slider.position.y - 22.0f});
         std::ostringstream stream;
         stream.setf(std::ios::fixed);
-        const int precision = (slider.max > 1.5f) ? 2 : 3;
+        int precision = 2;
+        if (slider.max <= 1.5f)
+        {
+            precision = 3;
+        }
+        else if (slider.max >= 100.0f)
+        {
+            precision = 1;
+        }
         stream << std::setprecision(precision) << slider.value;
         slider.text.setString(slider.label + ": " + stream.str());
     }
