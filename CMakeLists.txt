@@ -15,6 +15,7 @@ set(SOURCES
     src/PacketParser.cpp
     src/PointNormalizer.cpp
     src/SplineRenderer.cpp
+    src/AppConfig.cpp
     src/DeveloperPanel.cpp
 )
 

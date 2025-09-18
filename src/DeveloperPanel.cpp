@@ -7,6 +7,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include <SFML/Window/Mouse.hpp>
 
@@ -18,10 +19,15 @@ constexpr float TRACK_HEIGHT = 8.0f;
 constexpr float TRACK_WIDTH = 220.0f;
 constexpr float HIT_HEIGHT = 28.0f;
 constexpr float KNOB_RADIUS = 10.0f;
+constexpr float BUTTON_HEIGHT = 34.0f;
+constexpr float BUTTON_MARGIN_TOP = 18.0f;
+const sf::Color BUTTON_COLOR(60, 180, 255, 160);
+const sf::Color BUTTON_COLOR_HOVER(90, 210, 255, 200);
 } // namespace
 
-DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, sf::Font& font)
+DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, AppConfig& config, sf::Font& font, SaveCallback onSave)
     : normalizer_(normalizer)
+    , config_(config)
     , font_(font)
     , sliders_{
           Slider{"Sensitivity", 0.2f, 4.0f, normalizer.sensitivity(), {PANEL_PADDING, PANEL_PADDING + 24.0f}, TRACK_WIDTH, TRACK_HEIGHT, font_},
@@ -30,10 +36,15 @@ DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, sf::Font& font)
     , background_()
     , trackShape_(sf::Vector2f(TRACK_WIDTH, TRACK_HEIGHT))
     , knobShape_(KNOB_RADIUS)
+    , saveButton_(sf::Vector2f(TRACK_WIDTH, BUTTON_HEIGHT))
+    , saveButtonText_(font_)
+    , saveCallback_(std::move(onSave))
     , activeSlider_(static_cast<std::size_t>(-1))
     , dragging_(false)
+    , saveHover_(false)
 {
-    background_.setSize({TRACK_WIDTH + PANEL_PADDING * 2.0f, PANEL_PADDING * 2.0f + SLIDER_SPACING * 3.0f});
+    const float panelHeight = PANEL_PADDING * 2.0f + SLIDER_SPACING * 3.0f + BUTTON_MARGIN_TOP + BUTTON_HEIGHT;
+    background_.setSize({TRACK_WIDTH + PANEL_PADDING * 2.0f, panelHeight});
     background_.setFillColor(sf::Color(0, 0, 0, 160));
     background_.setOutlineThickness(1.0f);
     background_.setOutlineColor(sf::Color(60, 180, 255, 200));
@@ -42,7 +53,22 @@ DeveloperPanel::DeveloperPanel(PointNormalizer& normalizer, sf::Font& font)
     knobShape_.setFillColor(sf::Color(60, 180, 255));
     knobShape_.setOrigin({KNOB_RADIUS, KNOB_RADIUS});
 
+    saveButton_.setPosition({PANEL_PADDING, PANEL_PADDING + 24.0f + 3.0f * SLIDER_SPACING + BUTTON_MARGIN_TOP});
+    saveButton_.setFillColor(BUTTON_COLOR);
+    saveButton_.setOutlineThickness(1.0f);
+    saveButton_.setOutlineColor(sf::Color(20, 120, 200, 200));
+
+    saveButtonText_.setCharacterSize(16);
+    saveButtonText_.setFillColor(sf::Color::White);
+    saveButtonText_.setString("Save settings");
+    const sf::FloatRect textBounds = saveButtonText_.getLocalBounds();
+    const sf::Vector2f textPos{
+        saveButton_.getPosition().x + (saveButton_.getSize().x - textBounds.size.x) * 0.5f - textBounds.position.x,
+        saveButton_.getPosition().y + (saveButton_.getSize().y - textBounds.size.y) * 0.5f - textBounds.position.y};
+    saveButtonText_.setPosition(textPos);
+
     updateVisuals();
+    updateSaveButtonVisual(false);
 }
 
 void DeveloperPanel::handleEvent(const sf::Event& event, const sf::RenderWindow& window)
@@ -72,12 +98,23 @@ void DeveloperPanel::handleEvent(const sf::Event& event, const sf::RenderWindow&
         const auto* mouseButton = event.getIf<sf::Event::MouseButtonReleased>();
         if (mouseButton->button == sf::Mouse::Button::Left)
         {
+            if (saveButton_.getGlobalBounds().contains(mousePos))
+            {
+                handleSaveClick();
+            }
             dragging_ = false;
             activeSlider_ = static_cast<std::size_t>(-1);
         }
     }
     else if (event.is<sf::Event::MouseMoved>())
     {
+        const bool overButton = saveButton_.getGlobalBounds().contains(mousePos);
+        if (overButton != saveHover_)
+        {
+            saveHover_ = overButton;
+            updateSaveButtonVisual(saveHover_);
+        }
+
         if (dragging_)
         {
             handleMouseDrag(mousePos);
@@ -111,6 +148,9 @@ void DeveloperPanel::draw(sf::RenderTarget& target) const
 
         target.draw(slider.text);
     }
+
+    target.draw(saveButton_);
+    target.draw(saveButtonText_);
 }
 
 sf::FloatRect DeveloperPanel::Slider::trackRect() const
@@ -147,7 +187,10 @@ void DeveloperPanel::syncFromNormalizer()
 
 void DeveloperPanel::applyToNormalizer()
 {
-    normalizer_.configure(sliders_[0].value, sliders_[1].value, sliders_[2].value);
+    config_.sensitivity = sliders_[0].value;
+    config_.smoothing = sliders_[1].value;
+    config_.deadZone = sliders_[2].value;
+    normalizer_.configure(config_.sensitivity, config_.smoothing, config_.deadZone);
 }
 
 void DeveloperPanel::updateVisuals()
@@ -177,6 +220,19 @@ void DeveloperPanel::handleMouseDrag(const sf::Vector2f& worldPos)
     slider.setValue(slider.min + ratio * (slider.max - slider.min));
     applyToNormalizer();
     updateVisuals();
+}
+
+void DeveloperPanel::updateSaveButtonVisual(bool hover)
+{
+    saveButton_.setFillColor(hover ? BUTTON_COLOR_HOVER : BUTTON_COLOR);
+}
+
+void DeveloperPanel::handleSaveClick()
+{
+    if (saveCallback_)
+    {
+        saveCallback_();
+    }
 }
 
 DeveloperPanel::Slider::Slider(const std::string& labelValue,

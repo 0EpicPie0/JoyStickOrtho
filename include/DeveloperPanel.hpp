@@ -10,14 +10,18 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <array>
+#include <functional>
 #include <string>
 
+#include "AppConfig.hpp"
 #include "PointNormalizer.hpp"
 
 class DeveloperPanel
 {
 public:
-    DeveloperPanel(PointNormalizer& normalizer, sf::Font& font);
+    using SaveCallback = std::function<void()>;
+
+    DeveloperPanel(PointNormalizer& normalizer, AppConfig& config, sf::Font& font, SaveCallback onSave);
 
     void handleEvent(const sf::Event& event, const sf::RenderWindow& window);
     void update();
@@ -54,15 +58,22 @@ private:
     void applyToNormalizer();
     void updateVisuals();
     void handleMouseDrag(const sf::Vector2f& worldPos);
+    void updateSaveButtonVisual(bool hover);
+    void handleSaveClick();
 
     PointNormalizer& normalizer_;
+    AppConfig& config_;
     sf::Font& font_;
     std::array<Slider, 3> sliders_;
     sf::RectangleShape background_;
     mutable sf::RectangleShape trackShape_;
     mutable sf::CircleShape knobShape_;
+    sf::RectangleShape saveButton_;
+    sf::Text saveButtonText_;
+    SaveCallback saveCallback_;
     std::size_t activeSlider_;
     bool dragging_;
+    bool saveHover_;
 };
 
 #endif // JOYSTICK_DEV_MODE

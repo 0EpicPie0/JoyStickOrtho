@@ -2,6 +2,7 @@
 #include <SFML/System.hpp>
 #include <SFML/Window.hpp>
 
+#include "AppConfig.hpp"
 #include "PacketParser.hpp"
 #include "PointNormalizer.hpp"
 #include "SerialPort.hpp"
@@ -11,7 +12,9 @@
 #endif
 
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -23,6 +26,7 @@ constexpr unsigned int WINDOW_HEIGHT = 600;
 constexpr float ADC_MAX = 4095.0f;
 constexpr std::size_t MAX_POINTS = 4000;
 constexpr const char* DEFAULT_SERIAL_DEVICE = "/dev/cu.usbserial-10";
+constexpr const char* DEFAULT_CONFIG_FILE = "joystick_config.cfg";
 
 std::string resolveSerialDevice()
 {
@@ -31,6 +35,19 @@ std::string resolveSerialDevice()
         return env;
     }
     return DEFAULT_SERIAL_DEVICE;
+}
+
+std::filesystem::path resolveConfigPath()
+{
+    if (const char* env = std::getenv("JOYSTICK_CONFIG"))
+    {
+        if (*env != '\0')
+        {
+            return std::filesystem::path(env);
+        }
+    }
+
+    return std::filesystem::path(DEFAULT_CONFIG_FILE);
 }
 
 bool loadFont(sf::Font& font)
@@ -74,12 +91,12 @@ std::string toFixed(float value, int precision)
 
 std::string buildInstructionText(const PointNormalizer& normalizer)
 {
-    std::string text = "ESC - выход | C - очистка холста";
+    std::string text = "ESC - exit | C - clear canvas";
 #ifdef JOYSTICK_DEV_MODE
     text += "\nSens: " + toFixed(normalizer.sensitivity(), 2);
     text += " | Smooth: " + toFixed(normalizer.smoothing(), 2);
     text += " | Dead: " + toFixed(normalizer.deadZone(), 3);
-    text += " | Режим разработчика: перетащи ползунки слева";
+    text += " | Dev: adjust sliders and press Save";
 #endif
     return text;
 }
@@ -107,7 +124,15 @@ int main()
         return 1;
     }
 
-    PointNormalizer normalizer(WINDOW_WIDTH, WINDOW_HEIGHT, ADC_MAX);
+    const std::filesystem::path configPath = resolveConfigPath();
+    AppConfig config;
+    const bool configLoaded = loadAppConfig(configPath, config);
+    if (!configLoaded)
+    {
+        std::cerr << "Using default settings; config file not found or invalid: " << configPath << '\n';
+    }
+
+    PointNormalizer normalizer(WINDOW_WIDTH, WINDOW_HEIGHT, ADC_MAX, config.sensitivity, config.smoothing, config.deadZone);
     std::vector<sf::Vector2f> points;
     points.reserve(1024);
 
@@ -124,8 +149,18 @@ int main()
         instructionsBackground.setOutlineThickness(1.0f);
         instructionsBackground.setOutlineColor(sf::Color(60, 180, 255, 150));
     }
+
 #ifdef JOYSTICK_DEV_MODE
-    DeveloperPanel developerPanel(normalizer, uiFont);
+    DeveloperPanel developerPanel(normalizer, config, uiFont, [&config, configPath]() {
+        if (!saveAppConfig(configPath, config))
+        {
+            std::cerr << "Failed to save config to " << configPath << '\n';
+        }
+    });
+#else
+    (void)config;
+    (void)configPath;
+    (void)configLoaded;
 #endif
 
     while (window.isOpen())
